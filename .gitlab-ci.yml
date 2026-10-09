@@ -1,0 +1,49 @@
+# GitLab CI/CD pipeline for the NGINX Nyan Cat website.
+
+variables:
+  # The fully qualified image name pushed to the GitLab Container Registry.
+  IMAGE_NAME: "$CI_REGISTRY_IMAGE"
+  CONTAINER_TAG: "$CI_COMMIT_SHORT_SHA"
+
+stages:
+  - build
+  - push
+  - deploy
+
+# Build the Docker image from the Dockerfile using Kaniko (rootless friendly).
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    # Authenticate Kaniko against the GitLab Container Registry.
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+        --destination "$IMAGE_NAME:$CONTAINER_TAG"
+
+# Push a `latest` tag in addition to the commit SHA tag.
+push-image:
+  stage: push
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+        --destination "$IMAGE_NAME:$CONTAINER_TAG" \
+        --destination "$IMAGE_NAME:latest"
+
+# Placeholder for deploying to Rancher. Adjust the job to your environment.
+# The most common approaches are documented in README.md under "Deploy".
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  script:
+    - echo "Configure this job with `kubectl` or the Rancher CLI to roll out $IMAGE_NAME:$CONTAINER_TAG"

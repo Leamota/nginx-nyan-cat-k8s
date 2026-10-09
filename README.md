@@ -1,93 +1,207 @@
-# Activity2
+# Activity 2
 
+Create a container that runs NGINX to host a website that embeddeds a Nyan Cat YouTube Video.
 
+# Steps
 
-## Getting started
+## Fork
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Fork this repository in GitLab so you have your own copy to work in:
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+1. Open the original repository in the GitLab UI.
+2. Click **Fork** (top-right) and select your personal namespace or group as the destination.
+3. Clone your fork locally:
 
-## Add your files
+   ```bash
+   git clone <URL-of-your-fork>.git
+   cd activity2
+   ```
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Create an HTML file
+
+Create `www/index.html` that embeds a Nyan Cat YouTube video. The repository already
+contains a ready-to-use example at [`www/index.html`](www/index.html). It uses the
+classic Nyan Cat video (`QH2-TGUlwu4`) and a responsive, centered layout:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyan Cat</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #ff6ec7, #a0e6ff);
+        }
+        .container { text-align: center; padding: 2rem; background: rgba(255,255,255,0.85); border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.35); }
+        .video-wrapper {
+            position: relative; width: 640px; max-width: 90vw; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; box-shadow: 0 2px 32px rgba(0,0,0,0.4);
+        }
+        .video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nyan Cat</h1>
+        <div class="video-wrapper">
+            <iframe
+                src="https://www.youtube.com/embed/QH2-TGUlwu4"
+                title="Nyan Cat original"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen>
+            </iframe>
+        </div>
+    </div>
+</body>
+</html>
+```
+
+## Create a GitLab CI/CD file
+
+The repository includes [`.gitlab-ci.yml`](.gitlab-ci.yml), which builds and pushes the
+NGINX container image to the GitLab Container Registry using Kaniko, then leaves a
+placeholder deploy job for Rancher. The pipeline has three stages:
+
+1. **build** – build the Docker image from the `Dockerfile`.
+2. **push** – push commit-SHA and `latest` tags to `$CI_REGISTRY_IMAGE`.
+3. **deploy** – roll out the new image (configure this job for your cluster).
+
+The pipeline uses these built-in CI/CD variables, so no secrets need to be added manually:
+
+| Variable | Meaning |
+| --- | --- |
+| `CI_REGISTRY` | Container registry host (`gitlab.com`) |
+| `CI_REGISTRY_IMAGE` | Full image path `<registry>/<group>/<project>` |
+| `CI_REGISTRY_USER` / `CI_REGISTRY_PASSWORD` | Registry credentials (auto-set) |
+
+### Required variables for Rancher/cluster access
+
+The `deploy` job needs a kubeconfig so it can talk to your cluster. Add a masked,
+protected CI/CD variable named **`KUBECONFIG`** containing the contents of your
+kubeconfig file (`Settings > CI/CD > Variables`). The deploy script then uses it:
+
+```yaml
+deploy:
+  stage: deploy
+  image: bitnami/kubectl:latest
+  variables:
+    KUBECONFIG: /tmp/.kube/config
+  before_script:
+    - mkdir -p /tmp/.kube
+    - echo "$KUBECONFIG" > /tmp/.kube/config
+  script:
+    - kubectl set image deployment/nyan-cat nginx="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" -n activity2
+```
+
+## Deploy with Rancher
+
+HTTPS is terminated at the ingress, so the container only needs to serve plain HTTP on port 80.
+The target URL / host for this assignment is:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.hpc.fau.edu/cis5645/activity2.git
-git branch -M main
-git push -uf origin main
+cis-yournetid.student.hpc.fau.edu   # replace yournetid with your actual netid
 ```
 
-## Integrate with your tools
+There are two common ways to deploy through Rancher.
 
-* [Set up project integrations](https://gitlab.hpc.fau.edu/cis5645/activity2/-/settings/integrations)
+### Option A — Rancher UI (simplest)
 
-## Collaborate with your team
+1. **Import the cluster** into Rancher (`Cluster Management > Import`), or select an existing one.
+2. Create a namespace, e.g. `activity2`, from **Cluster Explorer**.
+3. **Deploy the workload:**
+   - Go to **Workload > Create**, choose *Single container*.
+   - Image: your registry image (e.g. `registry.gitlab.com/<group>/<project>:latest`).
+   - Add a container port `80` → Host IP/port `80`.
+   - Set the Service Account / image pull secret if using a private registry (`Container Registry` credentials).
+4. **Create an Ingress:**
+   - Go to **Service Discovery > Ingresses > Create**.
+   - Rule: host = `cis-yournetid.student.hpc.fau.edu`, path `/`, target service/port = your workload, port `80`.
+   - Enable TLS (Rancher can auto-provision a certificate via cert-manager / Let's Encrypt if configured).
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Option B — kubectl manifests + Rancher
 
-## Test and Deploy
+Apply plain Kubernetes manifests to the cluster managed by Rancher:
 
-Use the built-in continuous integration in GitLab.
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nyan-cat
+  namespace: activity2
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: nyan-cat }
+  template:
+    metadata:
+      labels: { app: nyan-cat }
+    spec:
+      containers:
+        - name: nginx
+          image: registry.gitlab.com/<group>/<project>:latest   # or $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA via CI
+          ports: [{ containerPort: 80 }]
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nyan-cat-svc
+  namespace: activity2
+spec:
+  selector: { app: nyan-cat }
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
 
-***
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nyan-cat-ingress
+  namespace: activity2
+spec:
+  ingressClassName: nginx            # adjust to the class Rancher uses on your cluster
+  rules:
+    - host: cis-yournetid.student.hpc.fau.edu   # replace yournetid with your netid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nyan-cat-svc
+                port: { number: 80 }
 
-# Editing this README
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressTLS
+# Optional: add TLS if cert-manager is configured for the domain.
+metadata:
+  name: nyan-cat-tls
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Apply with `kubectl apply -f manifests.yaml` (with your kubeconfig), then verify:
 
-## Suggestions for a good README
+```bash
+kubectl get pods,svc,ingress -n activity2
+curl -k https://cis-yournetid.student.hpc.fau.edu   # should return the Nyan Cat page
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Local testing (optional)
 
-## Name
-Choose a self-explaining name for your project.
+You can build and run the image locally before pushing it to the cluster:
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```bash
+docker build -t nyan-cat .
+docker run --rm -p 8080:80 nyan-cat
+# Open http://localhost:8080 in a browser.
+```
