@@ -198,10 +198,25 @@ curl -k https://cis-yournetid.student.hpc.fau.edu   # should return the Nyan Cat
 
 ## Local testing (optional)
 
-You can build and run the image locally before pushing it to the cluster:
+Validate the pipeline locally before pushing anything to GitLab using
+[`gitlab-ci-local`](https://github.com/firecow/gitlab-ci-local), which runs your real
+`.gitlab-ci.yml` jobs in Docker on your machine.
 
 ```bash
+# Install once (Homebrew or npm)
+brew install gitlab-ci-local      # or:  npm install -g gitlab-ci-local
+
+./test.sh            # validate YAML + run lint-workflow, then build & serve the image
+./test.sh list       # print all jobs/stages and validate the YAML
+./test.sh lint       # run only the self-contained lint-workflow job
+./test.sh build      # host-side Docker build + curl validation (no gitlab-ci-local)
+
 docker build -t nyan-cat .
 docker run --rm -p 8080:80 nyan-cat
 # Open http://localhost:8080 in a browser.
 ```
+
+> The `test-workflow`/build/deploy steps need an image builder inside the job container
+> (Docker-in-Docker). That is blocked on Rancher Desktop and some Docker Desktop setups,
+> so `test.sh` runs those checks directly against the host's docker daemon as a faithful
+> fallback — no privileged mode required.

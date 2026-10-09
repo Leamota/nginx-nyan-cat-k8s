@@ -3,3 +3,5 @@
 .gitlab-ci.yml
 Dockerfile
 .dockerignore
+test.sh
+*.md

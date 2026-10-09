@@ -6,9 +6,26 @@ variables:
   CONTAINER_TAG: "$CI_COMMIT_SHORT_SHA"
 
 stages:
+  - test
   - build
   - push
   - deploy
+
+# Repo-structure lint that runs anywhere with `gitlab-ci-local` — no Docker-in-Docker,
+# no registry credentials needed. Verifies the files the pipeline builds/deploys are
+# present and well-formed so CI wiring can be validated locally before pushing.
+lint-workflow:
+  stage: test
+  image: alpine:latest
+  script:
+    - apk add --no-cache bash grep sed
+    # Fail fast if expected artifacts are missing or malformed.
+    - test -f Dockerfile && echo OK-Dockerfile-present
+    - test -f .gitlab-ci.yml && echo OK-pipeline-file-present
+    - test -f www/index.html && echo OK-website-present
+    - grep -q 'FROM nginx' Dockerfile || { echo "Dockerfile does not build NGINX"; exit 1; }
+    - grep -qi 'Nyan Cat' www/index.html || { echo "index.html missing Nyan Cat content"; exit 1; }
+    - grep -qi 'youtube.com/embed' www/index.html || { echo "index.html missing embedded video iframe"; exit 1; }
 
 # Build the Docker image from the Dockerfile using Kaniko (rootless friendly).
 build-image:

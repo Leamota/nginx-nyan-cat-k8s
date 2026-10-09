@@ -1,0 +1,5 @@
+# gitlab-ci-local runtime artifacts (build copies, cache, state). Never commit.
+.gitlab-ci-local/
+
+# Local build image tag created by test.sh build
+*.local.lock
