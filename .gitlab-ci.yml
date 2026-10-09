@@ -37,10 +37,9 @@ build-image:
     - mkdir -p /kaniko/.docker
     # Authenticate Kaniko against the GitLab Container Registry.
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor \
-        --context "$CI_PROJECT_DIR" \
-        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
-        --destination "$IMAGE_NAME:$CONTAINER_TAG"
+    # Single line on purpose: backslash continuations fold a leading space into the
+    # flags, which Cobra reads as an unknown subcommand ("unknown command ' --context'").
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$IMAGE_NAME:$CONTAINER_TAG"
 
 # Push a `latest` tag in addition to the commit SHA tag.
 push-image:
@@ -51,11 +50,8 @@ push-image:
   script:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    - /kaniko/executor \
-        --context "$CI_PROJECT_DIR" \
-        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
-        --destination "$IMAGE_NAME:$CONTAINER_TAG" \
-        --destination "$IMAGE_NAME:latest"
+    # Single line on purpose (see build-image above).
+    - /kaniko/executor --context "$CI_PROJECT_DIR" --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "$IMAGE_NAME:$CONTAINER_TAG" --destination "$IMAGE_NAME:latest"
 
 # Placeholder for deploying to Rancher. Adjust the job to your environment.
 # The most common approaches are documented in README.md under "Deploy".
