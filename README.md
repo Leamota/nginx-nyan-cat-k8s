@@ -1,4 +1,5 @@
-# Activity 2
+ # Activity 2
+ # Activity 2 trigger CI Pipeline
 
 Create a container that runs NGINX to host a website that embeddeds a Nyan Cat YouTube Video.
 
@@ -220,3 +221,4 @@ docker run --rm -p 8080:80 nyan-cat
 > (Docker-in-Docker). That is blocked on Rancher Desktop and some Docker Desktop setups,
 > so `test.sh` runs those checks directly against the host's docker daemon as a faithful
 > fallback — no privileged mode required.
+
